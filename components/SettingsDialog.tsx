@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Shield, Server, Cpu, Key, ExternalLink, Zap, FolderOpen, Download, Layout, Settings, CloudDownload, Loader2 } from 'lucide-react';
-import { AISettings, AIProvider } from '../types';
-import { AI_MODELS } from '../constants';
+import { X, Save, RotateCcw, Shield, Server, Cpu, Key, ExternalLink, Zap, FolderOpen, Download, Layout, Settings, CloudDownload, Loader2, Eye } from 'lucide-react';
+import { AISettings, AIProvider, AIThinkingEffort } from '../types';
+import { AI_MODELS, getVisionSupport } from '../constants';
 import InfoTooltip from './InfoTooltip';
 
 interface SettingsDialogProps {
@@ -53,9 +53,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       // Note: We don't close the dialog automatically in case of error, handled by App.tsx
   };
 
-  const handleChange = (field: keyof AISettings, value: string) => {
+  const handleChange = (field: keyof AISettings, value: string | number | undefined) => {
     setLocalSettings(prev => {
-        const updates: Partial<AISettings> = { [field]: value };
+        const updates: Partial<AISettings> = {};
+        (updates as Record<string, unknown>)[field] = value;
         
         // Auto-set defaults when provider changes
         if (field === 'provider') {
@@ -70,7 +71,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 updates.model = 'claude-3-5-sonnet-20240620';
             } else if (value === 'deepseek') {
                 updates.baseUrl = 'https://api.deepseek.com';
-                updates.model = 'deepseek-chat';
+                // deepseek-flash = DeepSeek V4.1 Flash, the multimodal (vision) model.
+                updates.model = 'deepseek-flash';
             } else if (value === 'custom') {
                 updates.baseUrl = 'http://localhost:11434/v1';
                 updates.model = 'llama3';
@@ -291,13 +293,15 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                              <button
                                  key={m.id}
                                  onClick={() => handleChange('model', m.id)}
-                                 className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                 title={m.vision ? 'Supports image input (vision)' : 'Text only'}
+                                 className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border transition-colors ${
                                      localSettings.model === m.id 
                                      ? 'bg-blue-900/40 border-blue-500 text-blue-200' 
                                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-300'
                                  }`}
                              >
                                  {m.name}
+                                 {m.vision && <Eye size={9} className="text-emerald-400" />}
                              </button>
                          ))}
                        </div>
@@ -308,6 +312,55 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                           className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                           placeholder="Custom model ID..."
                        />
+                       {getVisionSupport(localSettings.provider, localSettings.model) === false ? (
+                          <p className="text-[10px] text-amber-400 mt-1.5">
+                             Text-only model — image import (mockup / reference image) is disabled.
+                          </p>
+                       ) : (
+                          <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                             <Eye size={9} className="text-emerald-400" /> = accepts image input for the mockup importer.
+                          </p>
+                       )}
+                    </div>
+
+                    {/* Output limits */}
+                    <div className="grid grid-cols-2 gap-3">
+                       <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
+                            Max Output Tokens
+                            <InfoTooltip text="Upper bound for the generated code or JSON. Raise it if long files come back truncated." />
+                          </label>
+                          <input
+                             type="number"
+                             min={256}
+                             max={131072}
+                             value={localSettings.maxTokens ?? ''}
+                             placeholder="8192"
+                             onChange={(e) => handleChange('maxTokens', e.target.value === '' ? undefined : Number(e.target.value))}
+                             className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
+                          />
+                       </div>
+
+                       {/* DeepSeek-specific thinking mode */}
+                       {localSettings.provider === 'deepseek' && (
+                          <div>
+                             <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
+                               Thinking Mode
+                               <InfoTooltip text="DeepSeek V4.x thinks by default, which is slower and ignores temperature. 'Disabled' gives fast, deterministic output." />
+                             </label>
+                             <select
+                                value={localSettings.thinkingEffort ?? 'auto'}
+                                onChange={(e) => handleChange('thinkingEffort', e.target.value as AIThinkingEffort)}
+                                className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                             >
+                                <option value="auto">Auto (model default: thinking on)</option>
+                                <option value="disabled">Disabled (fast, deterministic)</option>
+                                <option value="low">Low effort</option>
+                                <option value="high">High effort</option>
+                                <option value="max">Max effort</option>
+                             </select>
+                          </div>
+                       )}
                     </div>
                  </div>
               )}

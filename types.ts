@@ -203,12 +203,48 @@ export type CodeLanguage = 'c' | 'micropython';
 
 export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'deepseek' | 'custom';
 
+/**
+ * A selectable model for a provider.
+ * `vision` is the capability flag used to decide whether an image can be attached:
+ * true = known multimodal, false = known text-only, undefined = unknown (custom id, optimistically allowed).
+ */
+export interface AIModelOption {
+  id: string;
+  name: string;
+  vision?: boolean;
+}
+
+/** An image prepared for a multimodal request (already downscaled/re-encoded by services/imageUtils). */
+export interface AIImageAttachment {
+  /** data:<mime>;base64,<data> — ready to embed in an OpenAI-style image_url block. */
+  dataUrl: string;
+  /** MIME type of the *encoded* payload (not the original file). */
+  mimeType: string;
+  /** Original file name, for display only. */
+  name: string;
+  /** Dimensions after downscaling. */
+  width: number;
+  height: number;
+  /** Decoded byte size of the payload, used for the request-size guard. */
+  bytes: number;
+}
+
+/** DeepSeek V4.x thinking-mode control. 'auto' leaves the provider default (thinking ON). */
+export type AIThinkingEffort = 'auto' | 'disabled' | 'low' | 'high' | 'max';
+
 export interface AISettings {
   provider: AIProvider;
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** DeepSeek only: thinking mode toggle/effort. Ignored by other providers. */
+  thinkingEffort?: AIThinkingEffort;
+  /** Upper bound for generated tokens. Falls back to an internal default when unset. */
+  maxTokens?: number;
 }
+
+/** What the mockup importer should produce. */
+export type MockupTarget = 'widgets' | 'code';
 
 export interface ProjectFile {
   version: string;

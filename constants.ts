@@ -1,5 +1,5 @@
 
-import { WidgetType, CanvasSettings, Theme, DevicePreset } from './types';
+import { WidgetType, CanvasSettings, Theme, DevicePreset, AIProvider, AIModelOption } from './types';
 
 export const PROJECT_THEMES: Record<string, Theme> = {
   light: {
@@ -74,30 +74,46 @@ export const PROJECT_THEMES: Record<string, Theme> = {
   }
 };
 
-export const AI_MODELS = {
+export const AI_MODELS: Record<AIProvider, AIModelOption[]> = {
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fast)' },
-    { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro (Thinking/High Quality)' },
-    { id: 'gemini-2.5-flash-thinking', name: 'Gemini 2.5 Flash Thinking' }
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fast)', vision: true },
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro (Thinking/High Quality)', vision: true },
+    { id: 'gemini-2.5-flash-thinking', name: 'Gemini 2.5 Flash Thinking', vision: true }
   ],
   openai: [
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
+    { id: 'gpt-4o', name: 'GPT-4o', vision: true },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', vision: false }
   ],
   anthropic: [
-    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' }
+    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', vision: true },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', vision: true },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', vision: true }
   ],
+  // DeepSeek V4.x: canonical ids are `deepseek-flash` (= V4.1-Flash, multimodal)
+  // and `deepseek-v4-pro` (text only). The V3/R1 ids are kept for older keys.
   deepseek: [
-    { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)' }
+    { id: 'deepseek-flash', name: 'DeepSeek V4.1 Flash (Vision)', vision: true },
+    { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', vision: false },
+    { id: 'deepseek-chat', name: 'DeepSeek V3 (Legacy)', vision: false },
+    { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Legacy)', vision: false }
   ],
+  // Custom/Ollama ids are free-form, so capability is unknown (optimistically allowed).
   custom: [
     { id: 'llama3', name: 'Llama 3' },
-    { id: 'mistral', name: 'Mistral' }
+    { id: 'mistral', name: 'Mistral' },
+    { id: 'llava', name: 'LLaVA (Vision)', vision: true }
   ]
 };
+
+export const findModelOption = (provider: AIProvider, modelId: string): AIModelOption | undefined =>
+  AI_MODELS[provider]?.find(m => m.id === modelId);
+
+/**
+ * Vision capability lookup for the currently configured model.
+ * true = known multimodal, false = known text-only, undefined = unknown custom id.
+ */
+export const getVisionSupport = (provider: AIProvider, modelId: string): boolean | undefined =>
+  findModelOption(provider, modelId)?.vision;
 
 export const LVGL_FONTS = [
   { name: 'Montserrat (Default)', value: 'Montserrat, sans-serif' },

@@ -13,10 +13,11 @@ import HistoryMenu from './components/HistoryMenu';
 import HelpDialog from './components/HelpDialog';
 import ContextMenu from './components/ContextMenu';
 import ExportProjectDialog from './components/ExportProjectDialog'; // [NEW]
+import MockupImportDialog, { MockupImportRequest } from './components/MockupImportDialog';
 import { useHistory } from './hooks/useHistory';
 import { SampleProject } from './data/samples';
-import { generateLVGLCode } from './services/aiService';
-import { Code, MonitorPlay, Settings as SettingsIcon, ZoomIn, ZoomOut, RotateCcw, RotateCw, FileJson, CircleHelp, Edit, Download, Eraser } from 'lucide-react';
+import { generateLVGLCode, generateCodeFromMockup, generateWidgetsFromMockup } from './services/aiService';
+import { Code, MonitorPlay, Settings as SettingsIcon, ZoomIn, ZoomOut, RotateCcw, RotateCw, FileJson, CircleHelp, Edit, Download, Eraser, ScanEye } from 'lucide-react';
 
 const STORAGE_KEY = 'lvgl_studio_autosave_v1';
 
@@ -101,6 +102,7 @@ const App: React.FC = () => {
 
   const [showCode, setShowCode] = useState(false);
   const [showExport, setShowExport] = useState(false); // [NEW]
+  const [showMockup, setShowMockup] = useState(false); // Vision: mockup/screenshot import
   const [showSettings, setShowSettings] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -614,6 +616,84 @@ const App: React.FC = () => {
     setSelectedIds([newWidget.id]);
   };
 
+  // --- Vision: mockup / screenshot import ---
+
+  const handleAddWidgetsFromAI = (partials: Partial<Widget>[], replaceExisting: boolean) => {
+    const existingCount = replaceExisting ? 0 : currentScreen.widgets.length;
+
+    const newWidgets: Widget[] = partials.map((partialWidget, index) => {
+      const type = partialWidget.type || WidgetType.BUTTON;
+      // Mockups supply real coordinates; fall back to a stagger only when the model omits them.
+      const fallbackOffset = ((existingCount + index) % 8) * 16;
+      const defaults = DEFAULT_WIDGET_PROPS[type];
+
+      return {
+        id: `widget_${Date.now()}_${index}`,
+        layerId: partialWidget.layerId || activeLayerId,
+        type,
+        name: partialWidget.name || `Widget_${existingCount + index + 1}`,
+        x: typeof partialWidget.x === 'number' ? partialWidget.x : 20 + fallbackOffset,
+        y: typeof partialWidget.y === 'number' ? partialWidget.y : 20 + fallbackOffset,
+        width: partialWidget.width || 100,
+        height: partialWidget.height || 50,
+        text: partialWidget.text,
+        contentMode: partialWidget.contentMode,
+        value: partialWidget.value,
+        checked: partialWidget.checked,
+        symbol: partialWidget.symbol,
+        options: partialWidget.options,
+        src: partialWidget.src,
+        placeholder: partialWidget.placeholder,
+        chartType: partialWidget.chartType,
+        min: partialWidget.min,
+        max: partialWidget.max,
+        flags: partialWidget.flags,
+        events: [], // Imported widgets start with no events
+        style: {
+          ...(defaults ? defaults.style : {}),
+          ...partialWidget.style // Override with AI styles
+        }
+      };
+    });
+
+    updateProject(replaceExisting ? 'Import Mockup (Replace)' : 'Import Mockup', prev => ({
+      ...prev,
+      screens: prev.screens.map(s => {
+        if (s.id === prev.activeScreenId) {
+          return { ...s, widgets: replaceExisting ? newWidgets : [...s.widgets, ...newWidgets] };
+        }
+        return s;
+      })
+    }));
+    setSelectedIds(newWidgets.map(w => w.id));
+  };
+
+  const handleMockupSubmit = async (request: MockupImportRequest): Promise<{ message: string }> => {
+    if (request.target === 'code') {
+      const generated = await generateCodeFromMockup(screens, canvasSettings, aiSettings, {
+        image: request.image,
+        language: request.language,
+        description: request.description,
+        includeProject: request.includeProject
+      });
+      setCodeLanguage(request.language);
+      setCode(generated);
+      setShowMockup(false);
+      setShowCode(true);
+      return { message: 'Code generated.' };
+    }
+
+    const { widgets, dropped } = await generateWidgetsFromMockup(canvasSettings, aiSettings, {
+      image: request.image,
+      description: request.description,
+      replaceExisting: request.replaceExisting
+    });
+    handleAddWidgetsFromAI(widgets, request.replaceExisting);
+
+    const skipped = dropped ? ` (${dropped} invalid entr${dropped === 1 ? 'y' : 'ies'} skipped)` : '';
+    return { message: `Imported ${widgets.length} widget${widgets.length === 1 ? '' : 's'} onto "${currentScreen.name}"${skipped}.` };
+  };
+
   const handleUpdateWidget = useCallback((id: string, updates: Partial<Widget>) => {
     const keys = Object.keys(updates);
     const action = keys.length === 1 ? `Update ${keys[0]}` : 'Update Widget';
@@ -1025,6 +1105,14 @@ const App: React.FC = () => {
             </button>
           </div>
 
+          <button
+            onClick={() => setShowMockup(true)}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-all shadow-lg shadow-purple-900/20"
+            title="Import a mockup or screenshot and turn it into widgets or code"
+          >
+            <ScanEye size={16} /> <span className="hidden xl:inline">Import Mockup</span>
+          </button>
+
           <button onClick={handleGenerateCode} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-all shadow-lg shadow-blue-900/20"><Code size={16} /> Generate Code</button>
         </div>
       </header>
@@ -1101,6 +1189,15 @@ const App: React.FC = () => {
 
       {/* Modals */}
       {showCode && <CodeViewer code={code} language={codeLanguage} isLoading={isGenerating} onClose={() => setShowCode(false)} onRefresh={handleGenerateCode} onLanguageChange={setCodeLanguage} />}
+      <MockupImportDialog
+        isOpen={showMockup}
+        onClose={() => setShowMockup(false)}
+        aiSettings={aiSettings}
+        canvasSettings={canvasSettings}
+        activeScreenName={currentScreen.name}
+        existingWidgetCount={currentScreen.widgets.length}
+        onSubmit={handleMockupSubmit}
+      />
       <SettingsDialog
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}

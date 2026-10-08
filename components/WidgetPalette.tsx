@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
-import { WidgetType, Layer, Screen, Widget, AISettings } from '../types';
+import React, { useRef, useState } from 'react';
+import { WidgetType, Layer, Screen, Widget, AISettings, AIImageAttachment } from '../types';
 import { generateSingleWidget } from '../services/aiService';
+import { prepareImageForAI, formatBytes } from '../services/imageUtils';
+import { getVisionSupport } from '../constants';
 import {
   Square,
   Type,
@@ -79,6 +81,8 @@ const WidgetPalette: React.FC<WidgetPaletteProps> = ({
   const [activeTab, setActiveTab] = useState<'widgets' | 'screens'>('widgets');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [referenceImage, setReferenceImage] = useState<AIImageAttachment | null>(null);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
 
   const widgets = [
     { type: WidgetType.BUTTON, icon: <MousePointerClick size={18} />, label: 'Button', description: 'Clickable button to trigger events.' },
@@ -129,17 +133,34 @@ const WidgetPalette: React.FC<WidgetPaletteProps> = ({
   };
 
   const handleAIGenerate = async () => {
-    if (!prompt.trim() || isGenerating) return;
+    if ((!prompt.trim() && !referenceImage) || isGenerating) return;
+    if (referenceImage && getVisionSupport(aiSettings.provider, aiSettings.model) === false) {
+      alert(`Model "${aiSettings.model}" cannot read images. Pick a vision model in Settings (for DeepSeek: deepseek-flash).`);
+      return;
+    }
     setIsGenerating(true);
     try {
-      const widgetData = await generateSingleWidget(prompt, aiSettings);
+      const description = prompt.trim() || 'Recreate the attached widget as closely as possible.';
+      const widgetData = await generateSingleWidget(description, aiSettings, referenceImage);
       onAddWidgetFromAI(widgetData);
       setPrompt(''); // Clear after success
+      setReferenceImage(null);
     } catch (error) {
-      alert("Failed to generate widget. Check API settings.");
+      alert(`Failed to generate widget: ${(error as Error).message}`);
       console.error(error);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setReferenceImage(await prepareImageForAI(file));
+    } catch (err) {
+      alert((err as Error).message);
     }
   };
 
@@ -175,18 +196,56 @@ const WidgetPalette: React.FC<WidgetPaletteProps> = ({
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
-                placeholder="e.g. Red round button..."
+                placeholder={referenceImage ? 'Describe or leave blank to match image...' : 'e.g. Red round button...'}
                 className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
               />
+              <input
+                type="file"
+                ref={referenceInputRef}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleReferenceUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => referenceInputRef.current?.click()}
+                disabled={isGenerating}
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 border ${
+                  referenceImage
+                    ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-300'
+                }`}
+                title="Attach a reference image (requires a vision model)"
+              >
+                <ImagePlus size={14} />
+              </button>
               <button
                 onClick={handleAIGenerate}
-                disabled={isGenerating || !prompt.trim()}
+                disabled={isGenerating || (!prompt.trim() && !referenceImage)}
                 className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white p-1.5 rounded transition-colors"
                 title="Generate Widget"
               >
                 {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
               </button>
             </div>
+            {referenceImage && (
+              <div className="flex items-center gap-2 mt-2 bg-slate-950 border border-purple-900/60 rounded px-2 py-1">
+                <img src={referenceImage.dataUrl} alt="Reference" className="w-8 h-8 object-contain rounded bg-slate-900" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-slate-300 truncate">{referenceImage.name}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {referenceImage.width}×{referenceImage.height} · {formatBytes(referenceImage.bytes)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setReferenceImage(null)}
+                  disabled={isGenerating}
+                  className="text-slate-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                  title="Remove reference image"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="p-4 border-b border-slate-700 bg-slate-800/50">

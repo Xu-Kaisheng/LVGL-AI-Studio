@@ -23,7 +23,8 @@
 - **Visual Drag-and-Drop Editor**: Intuitive canvas to place and arrange UI elements with snapping.
 - **Layer Management**: Create, lock, hide, and **reorder** layers via drag-and-drop to manage complex composite UIs.
 - **Image Uploads**: Upload images to preview them on the canvas and generate correct file-reference code.
-- **Multi-Provider AI**: Generate code using **Gemini (Flash/Pro)**, **DeepSeek V3/R1**, **Claude 3.5**, **GPT-4o**, or local models (Ollama).
+- **Multi-Provider AI**: Generate code using **Gemini (Flash/Pro)**, **DeepSeek V4.1 Flash / V4 Pro**, **Claude 3.5**, **GPT-4o**, or local models (Ollama).
+- **Mockup & Screenshot Import** 🆕👁️: Drop, browse or paste a UI image and let a vision model either rebuild the layout as **editable widgets** on the canvas or generate **LVGL C / MicroPython code** straight from the picture.
 - **Live Properties**: Real-time editing of dimensions, colors, borders, shadows, and logic.
 - **Advanced Widget Properties** 🆕: Support for LVGL Flags (Checkable, Floating, Scroll Momentum, etc.) and deep styling options like **Shadow Spread**.
 - **WSIWYG Rendering** 🎨: High-fidelity WYSWIYG rendering engine with visible overflows, exact border placement, and glitch-free resize handles.
@@ -185,10 +186,12 @@ Widgets support a robust event system. In the **Properties Panel**:
 Click the **Settings Icon** in the top header to configure your AI provider.
 
 - **Google Gemini**: Default. Supports **Google AI Studio** account integration (via "Connect Google Account") to access **Gemini 3.0 Pro** and **Thinking** models with higher limits.
-- **DeepSeek**: Enter your API key. Supports **DeepSeek V3** and **R1** (Reasoner).
+- **DeepSeek**: Enter your API key. Supports **DeepSeek V4.1 Flash** (`deepseek-flash` — the multimodal model, required for image import) and **DeepSeek V4 Pro** (`deepseek-v4-pro`, text only). The legacy `deepseek-chat` / `deepseek-reasoner` ids remain selectable. Use **Thinking Mode** to trade latency for reasoning effort; note that DeepSeek ignores `temperature` while thinking is on, which is why it is only sent in disabled mode.
 - **Anthropic Claude**: Enter your API key to generate high-quality code using **Claude 3.5 Sonnet** or **Opus**.
 - **OpenAI**: Requires `sk-...` key.
-- **Local LLM**: Connect to local endpoints (e.g., Ollama at `http://localhost:11434/v1`).
+- **Local LLM**: Connect to local endpoints (e.g., Ollama at `http://localhost:11434/v1`). Vision works if the local model is multimodal (e.g. `llava`).
+
+Models marked with a 👁️ in Settings accept image input. **Max Output Tokens** bounds the response — raise it if generated files come back truncated.
 
 ### 7. AI Code Generation 🤖
 
@@ -197,6 +200,17 @@ Click the **Settings Icon** in the top header to configure your AI provider.
 3.  Click **Generate Code**.
 4.  The AI receives a structured JSON payload describing all screens, widgets, themes, and events.
 5.  It produces fully functional C (LVGL v8/v9) or MicroPython code.
+
+### 8. Mockup / Screenshot Import 👁️
+
+1.  Click **Import Mockup** in the header (or attach a reference image in the palette's **AI Generator**).
+2.  Drop, browse or paste (`Cmd/Ctrl + V`) a UI image — JPEG, PNG, GIF or WebP. Anything larger than 1024 px is downscaled and re-encoded locally before it leaves the browser, so request size and cost stay bounded.
+3.  Choose the output:
+    - **Editable widgets** — the model returns a validated widget list that is placed on the active screen (opt to append or replace). Positions, sizes and colors are clamped to the canvas, and malformed entries are skipped rather than trusted.
+    - **LVGL code** — generate C or MicroPython directly from the picture, optionally merging the current canvas contents.
+4.  Add short **notes** for the model when the mockup needs interpretation (e.g. "ignore the phone status bar").
+
+> Vision requires a multimodal model. DeepSeek users should pick **DeepSeek V4.1 Flash** (`deepseek-flash`); text-only models such as `deepseek-v4-pro` are blocked in the dialog before any request is sent.
 
 ---
 
