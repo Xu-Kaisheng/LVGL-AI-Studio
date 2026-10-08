@@ -22,34 +22,34 @@ import { Code, MonitorPlay, Settings as SettingsIcon, ZoomIn, ZoomOut, RotateCcw
 const STORAGE_KEY = 'lvgl_studio_autosave_v1';
 
 // ---------------------------------------------------------------------------
-// F20-OBD 本地默认配置
-// 画布分辨率对齐 F20-OBD-ESP32 硬件：ST7796 3.5" @ 320x480 竖屏（RGB565）。
-// AI 默认走 DeepSeek（OpenAI 兼容接口），key 仅用于本地开发。
+// 默认配置（通用，不绑定具体项目）
+// 项目相关的 AI 凭证、分辨率、工程名等通过根目录 .env.local 覆盖，
+// 变量名以 VITE_ 前缀经由 import.meta.env 注入（dev / build 均生效）。
+// 见 .env.example。
 // ---------------------------------------------------------------------------
-const F20_PROJECT_NAME = 'F20_OBD_UI';
-const F20_BACKGROUND = '#111827'; // 与 dark 主题 background 一致
-
-const F20_CANVAS_SETTINGS: CanvasSettings = {
-  ...DEFAULT_CANVAS_SETTINGS,
-  width: 320,
-  height: 480,
-  defaultBackgroundColor: F20_BACKGROUND,
-  projectName: F20_PROJECT_NAME,
-  theme: 'dark',
-  targetDevice: 'custom',
-  rotation: 0,
+const envStr = (v: string | undefined): string | undefined => (v && v.trim() ? v.trim() : undefined);
+const envNum = (v: string | undefined): number | undefined => {
+  const n = Number(v);
+  return v && v.trim() && !Number.isNaN(n) ? n : undefined;
 };
 
-// AI 默认走 DeepSeek（OpenAI 兼容接口）。密钥不写进仓库：
-// 放在项目根目录 .env.local（已被 .gitignore 的 *.local 忽略），
-// 通过 Vite 原生 import.meta.env（VITE_ 前缀）注入，dev / build 均生效。
-const F20_AI_SETTINGS: AISettings = {
-  provider: (import.meta.env.VITE_F20_AI_PROVIDER as AIProvider) || 'deepseek',
-  apiKey: import.meta.env.VITE_F20_AI_API_KEY || '',
-  baseUrl: import.meta.env.VITE_F20_AI_BASE_URL || 'https://api.deepseek.com',
-  model: import.meta.env.VITE_F20_AI_MODEL || 'deepseek-flash',
-  thinkingEffort: (import.meta.env.VITE_F20_AI_THINKING as AIThinkingEffort) || 'auto',
-  maxTokens: import.meta.env.VITE_F20_AI_MAX_TOKENS ? Number(import.meta.env.VITE_F20_AI_MAX_TOKENS) : 32768,
+const DEFAULT_AI_SETTINGS: AISettings = {
+  provider: (envStr(import.meta.env.VITE_AI_PROVIDER) as AIProvider) || 'gemini',
+  apiKey: envStr(import.meta.env.VITE_AI_API_KEY) || '',
+  baseUrl: envStr(import.meta.env.VITE_AI_BASE_URL) || '',
+  model: envStr(import.meta.env.VITE_AI_MODEL) || 'gemini-2.5-flash',
+  thinkingEffort: (envStr(import.meta.env.VITE_AI_THINKING) as AIThinkingEffort) || 'auto',
+  maxTokens: envNum(import.meta.env.VITE_AI_MAX_TOKENS),
+};
+
+const DEFAULT_CANVAS: CanvasSettings = {
+  ...DEFAULT_CANVAS_SETTINGS,
+  width: envNum(import.meta.env.VITE_DEFAULT_WIDTH) ?? DEFAULT_CANVAS_SETTINGS.width,
+  height: envNum(import.meta.env.VITE_DEFAULT_HEIGHT) ?? DEFAULT_CANVAS_SETTINGS.height,
+  projectName: envStr(import.meta.env.VITE_DEFAULT_PROJECT_NAME) || DEFAULT_CANVAS_SETTINGS.projectName,
+  theme: envStr(import.meta.env.VITE_DEFAULT_THEME) || DEFAULT_CANVAS_SETTINGS.theme,
+  targetDevice: envStr(import.meta.env.VITE_DEFAULT_TARGET_DEVICE) || DEFAULT_CANVAS_SETTINGS.targetDevice,
+  defaultBackgroundColor: envStr(import.meta.env.VITE_DEFAULT_BACKGROUND) || DEFAULT_CANVAS_SETTINGS.defaultBackgroundColor,
 };
 
 // Unified State Interface for History
@@ -79,20 +79,8 @@ const App: React.FC = () => {
   const initialScreens: Screen[] = storedData?.screens || [{
     id: 'screen_1',
     name: 'Main Screen',
-    backgroundColor: F20_BACKGROUND,
-    widgets: [{
-      id: 'w_title',
-      layerId: 'layer_1',
-      type: WidgetType.LABEL,
-      name: 'Title',
-      x: 16,
-      y: 16,
-      width: 288,
-      height: 32,
-      text: F20_PROJECT_NAME,
-      events: [],
-      style: { textColor: '#f3f4f6', fontSize: 24, backgroundColor: 'transparent' }
-    }],
+    backgroundColor: DEFAULT_CANVAS.defaultBackgroundColor,
+    widgets: [],
     layers: [{ id: 'layer_1', name: 'Base Layer', visible: true, locked: false }]
   }];
 
@@ -102,7 +90,7 @@ const App: React.FC = () => {
 
   const initialActiveLayerId = initialScreens.find(s => s.id === initialActiveScreenId)?.layers[0]?.id || 'layer_1';
 
-  const initialSettings: CanvasSettings = storedData?.settings || F20_CANVAS_SETTINGS;
+  const initialSettings: CanvasSettings = storedData?.settings || DEFAULT_CANVAS;
 
   const initialStylePresets: StylePreset[] = storedData?.stylePresets || [
     { id: 'p1', name: 'Primary', style: { backgroundColor: '#3b82f6', textColor: '#ffffff', borderRadius: 8, borderWidth: 0 } },
@@ -157,7 +145,7 @@ const App: React.FC = () => {
   const [isPreview, setIsPreview] = useState(false);
 
   const [aiSettings, setAiSettings] = useState<AISettings>(() => {
-    return storedData?.aiSettings || F20_AI_SETTINGS;
+    return storedData?.aiSettings || DEFAULT_AI_SETTINGS;
   });
 
   const [confirmDialog, setConfirmDialog] = useState<{
