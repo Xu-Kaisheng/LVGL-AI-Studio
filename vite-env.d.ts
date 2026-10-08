@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_THEME?: string;
   readonly VITE_DEFAULT_TARGET_DEVICE?: string;
   readonly VITE_DEFAULT_BACKGROUND?: string;
+  // 可选：首次启动时载入的工程 JSON（相对应用根路径）
+  readonly VITE_BOOTSTRAP_PROJECT?: string;
 }
 
 interface ImportMeta {
