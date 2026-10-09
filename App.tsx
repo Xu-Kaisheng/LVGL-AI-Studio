@@ -16,8 +16,10 @@ import ExportProjectDialog from './components/ExportProjectDialog'; // [NEW]
 import MockupImportDialog, { MockupImportRequest } from './components/MockupImportDialog';
 import { useHistory } from './hooks/useHistory';
 import { SampleProject } from './data/samples';
+import RepoDesignDialog from './components/RepoDesignDialog';
 import { generateLVGLCode, generateCodeFromMockup, generateWidgetsFromMockup } from './services/aiService';
-import { Code, MonitorPlay, Settings as SettingsIcon, ZoomIn, ZoomOut, RotateCcw, RotateCw, FileJson, CircleHelp, Edit, Download, Eraser, ScanEye } from 'lucide-react';
+import { listRepoDesigns } from './services/repoDesign';
+import { Code, MonitorPlay, Settings as SettingsIcon, ZoomIn, ZoomOut, RotateCcw, RotateCw, FileJson, FolderGit2, CircleHelp, Edit, Download, Eraser, ScanEye } from 'lucide-react';
 
 const STORAGE_KEY = 'lvgl_studio_autosave_v1';
 
@@ -143,6 +145,7 @@ const App: React.FC = () => {
   const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>('c');
   const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; x: number; y: number } | null>(null);
   const [isPreview, setIsPreview] = useState(false);
+  const [showRepoDesigns, setShowRepoDesigns] = useState(false);
 
   const [aiSettings, setAiSettings] = useState<AISettings>(() => {
     return storedData?.aiSettings || DEFAULT_AI_SETTINGS;
@@ -295,6 +298,28 @@ const App: React.FC = () => {
       console.error(err);
       alert("Failed to import project from URL. Ensure it is a valid raw JSON file.");
     }
+  };
+
+  // --- 宿主仓库设计稿（同级 lvgl/*.json，由 dev 中间件提供）---
+  // 启动时扫一次：扫到就弹窗询问是否载入；每个浏览器会话最多自动弹一次，
+  // 之后随时可从顶栏 Design Files 按钮手动打开。
+  useEffect(() => {
+    const PROMPTED_KEY = 'lvgl_studio_repo_design_prompted';
+    if (sessionStorage.getItem(PROMPTED_KEY)) return;
+    let cancelled = false;
+    listRepoDesigns()
+      .then(({ files }) => {
+        if (cancelled || files.length === 0) return;
+        sessionStorage.setItem(PROMPTED_KEY, '1');
+        setShowRepoDesigns(true);
+      })
+      .catch(() => { /* 静态构建产物里没有该接口：静默跳过 */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLoadRepoDesign = (projectData: ProjectFile, fileName: string) => {
+    setShowRepoDesigns(false);
+    loadProjectState(projectData, `Repo: ${fileName}`);
   };
 
   // --- Sample Loading ---
@@ -1097,6 +1122,8 @@ const App: React.FC = () => {
 
           <button onClick={() => setShowSamples(true)} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border border-slate-700"><FileJson size={16} className="text-blue-400" /> Templates</button>
 
+          <button onClick={() => setShowRepoDesigns(true)} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border border-slate-700" title="Load a design project from the host repository's lvgl/ directory (dev server only)"><FolderGit2 size={16} className="text-emerald-400" /> <span className="hidden xl:inline">Design Files</span></button>
+
           <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-lg border border-slate-700">
             <select value={codeLanguage} onChange={(e) => setCodeLanguage(e.target.value as CodeLanguage)} className="bg-slate-800 text-xs font-medium text-slate-300 focus:outline-none px-2 py-1 cursor-pointer hover:text-white border-none">
               <option value="c" className="bg-slate-800">C (LVGL)</option>
@@ -1235,6 +1262,7 @@ const App: React.FC = () => {
       />
       <SampleCatalogue isOpen={showSamples} onClose={() => setShowSamples(false)} onSelectSample={handleLoadSample} />
       <ConfirmDialog isOpen={confirmDialog.isOpen} title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
+      <RepoDesignDialog isOpen={showRepoDesigns} onClose={() => setShowRepoDesigns(false)} onLoad={handleLoadRepoDesign} />
       <HelpDialog isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
       <ExportProjectDialog

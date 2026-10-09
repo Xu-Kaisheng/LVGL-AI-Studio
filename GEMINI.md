@@ -113,6 +113,24 @@ interface ProjectFile {
   - Styles: Extended support including `shadow_spread`.
 - **Single Widget Gen**: Implements `generateSingleWidget` which prompts the AI to return a single JSON object (Partial Widget) based on a user description.
 
+### `services/repoDesign.ts` + `components/RepoDesignDialog.tsx` + `vite.config.ts` (dev middleware)
+
+- **Purpose**: load a project JSON that lives in the **host repository**, so a host project keeping
+  this tool as a submodule does not have to export and re-import by hand.
+- **Directory**: the sibling `lvgl/` folder by default (i.e. `<host-repo>/tools/lvgl/`), overridable
+  with the `LVGL_STUDIO_DESIGN_DIR` environment variable. A missing directory yields an empty list,
+  never an error.
+- **Endpoints** (dev only, registered by the `repo-design-projects` plugin with `apply: 'serve'`):
+  `GET /api/repo-designs` (listing plus a summary of each project) and
+  `GET /api/repo-design?file=<name>.json` (raw project). Only direct `*.json` children of the
+  configured directory are served — paths that escape it are rejected.
+- **UI wiring**: on startup `App.tsx` scans once per browser session (`sessionStorage` key
+  `lvgl_studio_repo_design_prompted`) and opens the dialog to ask; the toolbar **Design Files**
+  button opens it manually at any time. Loading reuses `loadProjectState`, so the usual
+  "will overwrite your workspace" confirmation still applies, and nothing is written back.
+- **Static builds**: `npm run build` has no server, so the scan silently finds nothing and the
+  dialog states that the dev server is required.
+
 ## 5. Themes (`constants.ts`)
 
 Themes are static configuration objects (`PROJECT_THEMES`) that define color palettes (`primary`, `surface`, `background`, etc.).

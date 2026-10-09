@@ -115,6 +115,27 @@ To use Gemini API, create a `.env` file in the root directory:
 API_KEY=your_google_gemini_api_key
 ```
 
+See [`.env.example`](.env.example) for the full list of supported overrides (AI provider, canvas
+defaults, optional bootstrap project). Copy it to `.env.local` and fill in your values — `*.local`
+is git-ignored, so credentials and project-specific settings never reach the repository.
+
+### Host Repository Design Files (dev server only)
+
+When this tool lives inside a host project (for example as a submodule under `tools/`), the dev
+server can expose that project's design files, so you don't have to export and re-import them by
+hand:
+
+- **Directory**: the sibling `lvgl/` folder by default, i.e. `<host-repo>/tools/lvgl/*.json`.
+  Point it elsewhere with the `LVGL_STUDIO_DESIGN_DIR` environment variable (relative to the tool
+  root, or an absolute path). A missing directory is not an error — the list is simply empty.
+- **Startup prompt**: the app scans that directory once and asks whether to load a project if it
+  finds one. The same list is always reachable from the **Design Files** button in the toolbar.
+- **Endpoints**: `GET /api/repo-designs` (directory listing plus a summary of each project) and
+  `GET /api/repo-design?file=<name>.json` (raw project). Both exist only while running
+  `npm run dev`; a static `npm run build` has no server, and the UI degrades gracefully.
+- **Nothing is written back**: loading still goes through the normal "this will overwrite your
+  workspace" confirmation. Export from the tool and commit the file yourself.
+
 ---
 
 ## 📐 Workflow Architecture
